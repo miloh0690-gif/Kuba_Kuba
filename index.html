@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Kuba-Kuba · POS</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>tailwind.config={theme:{extend:{colors:{cream:'#f7f2e8',paper:'#fffdf8',line:'#e6dccb',kred:'#d62e43',kreddk:'#a81f33',teal:'#1a9a8b',ink:'#2b2420',mute:'#8a7d6d'}}}}</script>
+<script src="https://unpkg.com/lucide@latest"></script>
+<link href="https://fonts.googleapis.com/css2?family=Yellowtail&family=Fraunces:wght@600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*{font-family:Inter,sans-serif}
+.logo{font-family:Yellowtail,cursive;color:#d62e43;line-height:1}
+.fd{font-family:Fraunces,serif;font-weight:700}
+body{background:#f7f2e8}
+.petals{background-image:radial-gradient(circle at 20% 25%,rgba(214,46,67,.06) 0 26px,transparent 27px),radial-gradient(circle at 75% 65%,rgba(26,154,139,.07) 0 38px,transparent 39px);background-size:170px 170px}
+.app{height:100vh;height:100dvh}
+.card{transition:.18s}.card:hover{transform:translateY(-3px);box-shadow:0 14px 28px -14px rgba(43,36,32,.35);border-color:#d62e43}
+.card.off{opacity:.45;filter:grayscale(.6);cursor:not-allowed}.card.off:hover{transform:none;box-shadow:none;border-color:#e6dccb}
+input:focus,textarea:focus{outline:none;border-color:#1a9a8b!important;box-shadow:0 0 0 3px rgba(26,154,139,.15)}
+#cart{display:none}#cart.open{display:flex;position:fixed;inset:0;z-index:40}
+#fab{position:fixed;right:16px;bottom:16px;z-index:30}
+@media(min-width:1024px){#cart,#cart.open{display:flex!important;position:static!important;width:24rem!important}#cart-x,#fab{display:none!important}}
+@media print{body *{visibility:hidden}#ticket,#ticket *{visibility:visible}#ticket{position:absolute;left:0;top:0;width:100%}.no-print{display:none!important}}
+</style></head>
+<body class="app text-ink flex flex-col overflow-hidden">
+
+<header class="bg-paper border-b-4 border-teal px-3 sm:px-6 py-2 flex justify-between items-center shrink-0">
+  <span class="logo text-4xl sm:text-5xl">Kuba-Kuba</span>
+  <div class="flex items-center gap-3">
+    <span id="clock" class="text-sm font-semibold text-mute tabular-nums"></span>
+    <button id="btn-salir" onclick="salir()" title="Cerrar sesión de gerencia" class="hidden text-xs font-semibold text-mute hover:text-kred items-center gap-1"><i data-lucide="log-out" class="w-4 h-4"></i> Salir</button>
+  </div>
+</header>
+
+<main class="flex-1 flex overflow-hidden">
+<section class="flex-1 flex flex-col overflow-hidden petals min-w-0">
+  <nav id="cats" class="p-3 bg-paper/80 border-b border-line flex gap-2 overflow-x-auto shrink-0"></nav>
+
+  <div id="v-pos" class="flex-1 p-3 sm:p-4 overflow-y-auto pb-24 lg:pb-4">
+    <div id="grid" class="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3"></div>
+  </div>
+
+  <div id="v-resumen" class="hidden flex-1 p-4 overflow-y-auto space-y-4 pb-24 lg:pb-6">
+    <div class="flex flex-wrap justify-between items-center gap-3 bg-paper p-4 rounded-xl border border-line">
+      <div><h2 class="fd text-2xl">Resumen gerencial</h2><p class="text-xs text-mute">Facturación y pedidos del periodo</p></div>
+      <div id="seg-r" class="flex bg-cream p-1 rounded-lg border border-line"></div>
+    </div>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div class="bg-paper p-5 rounded-xl border border-line border-t-4 border-t-kred"><p class="text-xs font-semibold text-mute">Total facturado</p><h3 id="k-ing" class="fd text-4xl text-kred">0.00 Bs</h3></div>
+      <div class="bg-paper p-5 rounded-xl border border-line border-t-4 border-t-teal"><p class="text-xs font-semibold text-mute">Pedidos</p><h3 id="k-ped" class="fd text-4xl">0</h3></div>
+    </div>
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      <div class="bg-paper p-4 rounded-xl border border-line">
+        <h3 class="font-bold text-sm mb-3">Productos vendidos</h3>
+        <table class="w-full text-xs text-left"><thead class="text-mute border-b border-line"><tr><th class="p-2">Producto</th><th class="p-2 text-center">Unid.</th><th class="p-2 text-right">Subtotal</th></tr></thead><tbody id="t-top" class="divide-y divide-line"></tbody></table>
+      </div>
+      <div class="bg-paper p-4 rounded-xl border border-line"><h3 class="font-bold text-sm mb-3">Historial de órdenes</h3><div id="hist" class="space-y-2 max-h-96 overflow-y-auto"></div></div>
+    </div>
+  </div>
+
+  <div id="v-dev" class="hidden flex-1 p-4 overflow-y-auto space-y-4 pb-24 lg:pb-6">
+    <div class="flex flex-wrap justify-between items-center gap-3 bg-paper p-4 rounded-xl border border-line">
+      <div><h2 class="fd text-2xl">Modo desarrollador</h2><p class="text-xs text-mute">Un producto no disponible desaparece del POS hasta reactivarlo</p></div>
+      <button onclick="guardarDev(this)" class="bg-teal hover:brightness-110 text-white font-bold text-xs px-4 py-2.5 rounded-lg flex items-center gap-2"><i data-lucide="save" class="w-4 h-4"></i> Guardar cambios</button>
+    </div>
+    <div class="bg-paper rounded-xl border border-line overflow-x-auto"><table class="w-full text-xs text-left"><thead class="text-mute border-b border-line"><tr><th class="p-3">Producto</th><th class="p-3">Categoría</th><th class="p-3">Precio (Bs)</th><th class="p-3 text-center">Disponible</th></tr></thead><tbody id="t-dev" class="divide-y divide-line"></tbody></table></div>
+  </div>
+
+  <div id="v-inv" class="hidden flex-1 p-4 overflow-y-auto space-y-4 pb-24 lg:pb-6">
+    <div class="flex flex-wrap justify-between items-center gap-3 bg-paper p-4 rounded-xl border border-line">
+      <div><h2 class="fd text-2xl">Inventario de bebidas</h2><p class="text-xs text-mute">Stock, ventas y promedio diario</p></div>
+      <div class="flex items-center gap-2"><div id="seg-i" class="flex bg-cream p-1 rounded-lg border border-line"></div>
+        <button onclick="abrirLote()" class="bg-teal text-white font-bold text-xs px-3 py-2 rounded-lg flex items-center gap-1.5"><i data-lucide="package-plus" class="w-4 h-4"></i> Reponer varias</button></div>
+    </div>
+    <div class="bg-paper rounded-xl border border-line overflow-x-auto"><table class="w-full text-xs text-left"><thead class="text-mute border-b border-line"><tr><th class="p-3">Bebida</th><th class="p-3 text-center">Stock</th><th class="p-3 text-center">Vendidas</th><th class="p-3 text-center">Promedio diario</th><th class="p-3 text-center">Reponer</th></tr></thead><tbody id="t-inv" class="divide-y divide-line"></tbody></table></div>
+  </div>
+</section>
+
+<section id="cart" class="w-full bg-paper flex-col shrink-0 border-l border-line">
+  <div class="p-4 border-b border-line flex justify-between items-center shrink-0">
+    <div class="flex items-center gap-2"><button id="cart-x" onclick="cartToggle(false)" class="w-8 h-8 rounded-lg border border-line flex items-center justify-center"><i data-lucide="arrow-left" class="w-4 h-4"></i></button><h2 class="fd text-xl">Orden actual</h2></div>
+    <button onclick="vaciar()" class="text-xs text-mute hover:text-kred flex items-center gap-1"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i> Vaciar</button>
+  </div>
+  <div class="p-3 bg-cream border-b border-line space-y-2 shrink-0">
+    <input id="c-nombre" oninput="validar()" placeholder="Nombre del cliente" class="w-full bg-paper border border-line rounded-lg px-3 py-1.5 text-xs">
+    <input id="c-cel" type="tel" placeholder="Celular (opcional)" class="w-full bg-paper border border-line rounded-lg px-3 py-1.5 text-xs">
+    <div class="grid grid-cols-2 gap-2">
+      <button data-g="consumo" data-v="Para Llevar" onclick="pick('consumo','Para Llevar')"><i data-lucide="shopping-bag" class="w-3.5 h-3.5"></i> Para llevar</button>
+      <button data-g="consumo" data-v="En el Local" onclick="pick('consumo','En el Local')"><i data-lucide="utensils" class="w-3.5 h-3.5"></i> En el local</button>
+    </div>
+    <textarea id="c-nota" rows="2" placeholder="Nota (opcional): sin cebolla, mesa 4…" class="w-full bg-paper border border-line rounded-lg px-3 py-1.5 text-xs resize-none"></textarea>
+  </div>
+  <div id="cart-items" class="flex-1 overflow-y-auto p-4 space-y-2"></div>
+  <div class="p-4 border-t border-line bg-cream space-y-3 shrink-0 pb-[max(1rem,env(safe-area-inset-bottom))]">
+    <div class="flex justify-between items-baseline"><span class="text-sm font-bold">Total a cobrar</span><span id="total" class="fd text-2xl text-kred">0.00 Bs</span></div>
+    <div class="grid grid-cols-3 gap-2">
+      <button data-g="pago" data-v="Efectivo" onclick="pick('pago','Efectivo')"><i data-lucide="banknote" class="w-3.5 h-3.5"></i> Efectivo</button>
+      <button data-g="pago" data-v="Tarjeta" onclick="pick('pago','Tarjeta')"><i data-lucide="credit-card" class="w-3.5 h-3.5"></i> Tarjeta</button>
+      <button data-g="pago" data-v="QR" onclick="pick('pago','QR')"><i data-lucide="qr-code" class="w-3.5 h-3.5"></i> QR</button>
+    </div>
+    <button id="btn-venta" onclick="procesarVenta()" disabled class="w-full font-bold py-3.5 rounded-lg text-sm flex items-center justify-center gap-2"></button>
+  </div>
+</section>
+</main>
+
+<button id="fab" onclick="cartToggle(true)" class="hidden bg-kred text-white rounded-full shadow-xl px-5 py-3 items-center gap-2 font-bold text-sm"><i data-lucide="shopping-cart" class="w-5 h-5"></i><span id="fab-t"></span></button>
+
+<!-- Clave -->
+<div id="m-auth" class="fixed inset-0 bg-ink/60 hidden items-center justify-center p-4 z-50">
+  <div class="bg-paper rounded-2xl p-6 max-w-xs w-full text-center space-y-4 shadow-2xl">
+    <i data-lucide="lock" class="w-6 h-6 text-kred mx-auto"></i>
+    <h3 class="fd text-xl">Acceso restringido</h3>
+    <div><input id="a-pass" type="password" placeholder="Contraseña" onkeydown="if(event.key==='Enter')validarClave()" class="w-full bg-cream border border-line rounded-lg px-3 py-2 text-center text-sm"><p id="a-err" class="text-xs text-kred mt-1 hidden">Contraseña incorrecta</p></div>
+    <div class="flex gap-2"><button onclick="$('m-auth').classList.add('hidden')" class="flex-1 bg-cream border border-line font-bold py-2 rounded-lg text-xs">Cancelar</button><button onclick="validarClave()" class="flex-1 bg-kred text-white font-bold py-2 rounded-lg text-xs">Ingresar</button></div>
+  </div>
+</div>
+
+<!-- Comanda -->
+<div id="m-comanda" class="fixed inset-0 bg-ink/60 hidden items-center justify-center p-4 z-50 overflow-y-auto">
+  <div id="ticket" class="bg-white text-zinc-900 max-w-sm w-full p-6 shadow-2xl rounded">
+    <div class="text-center border-b-2 border-dashed border-zinc-300 pb-3 mb-3">
+      <p class="logo text-5xl">Kuba-Kuba</p><p class="text-[11px] font-bold tracking-widest text-zinc-500">COMANDA PARA COCINA</p>
+      <p id="t-id" class="text-xs font-bold mt-2"></p><p id="t-fecha" class="text-xs text-zinc-500"></p>
+    </div>
+    <div class="bg-zinc-100 p-2.5 rounded text-xs space-y-0.5 mb-3"><p><b>CLIENTE:</b> <span id="t-cli" class="font-black uppercase"></span></p><p><b>CELULAR:</b> <span id="t-cel"></span></p><p><b>TIPO:</b> <span id="t-tipo" class="font-black uppercase"></span></p></div>
+    <div id="t-nota-c" class="hidden bg-amber-50 border border-amber-300 rounded p-2 mb-3 text-xs"><b>Nota:</b> <span id="t-nota"></span></div>
+    <div id="t-det" class="space-y-2 mb-4 text-sm font-bold"></div>
+    <div class="border-t-2 border-dashed border-zinc-300 pt-3 flex justify-between items-baseline"><b>Total:</b><span id="t-total" class="fd text-2xl text-kred"></span></div>
+    <div class="mt-5 no-print">
+      <div class="flex items-center justify-between mb-2"><span id="est-imp" class="text-[11px] font-bold text-zinc-400"></span>
+        <div class="flex gap-1"><button onclick="conectarBT()" class="text-[10px] font-bold px-2 py-1 rounded bg-zinc-100 hover:bg-zinc-200">BT</button><button onclick="conectarUSB()" class="text-[10px] font-bold px-2 py-1 rounded bg-zinc-100 hover:bg-zinc-200">USB</button></div></div>
+      <div class="flex gap-2"><button onclick="imprimir()" class="flex-1 bg-kred text-white font-bold py-2.5 rounded-lg text-sm flex items-center justify-center gap-2"><i data-lucide="printer" class="w-4 h-4"></i> Imprimir comanda</button><button onclick="$('m-comanda').classList.add('hidden')" class="bg-zinc-200 font-bold px-4 rounded-lg text-sm">Cerrar</button></div>
+    </div>
+  </div>
+</div>
+
+<!-- Reposición en lote -->
+<div id="m-lote" class="fixed inset-0 bg-ink/60 hidden items-center justify-center p-4 z-50">
+  <div class="bg-paper rounded-2xl p-5 max-w-lg w-full shadow-2xl max-h-[90dvh] overflow-y-auto">
+    <div class="flex justify-between items-center border-b border-line pb-3 mb-3"><h3 class="fd text-xl">Reponer stock</h3><button onclick="$('m-lote').classList.add('hidden')"><i data-lucide="x" class="w-5 h-5"></i></button></div>
+    <div id="lote" class="space-y-2 max-h-96 overflow-y-auto mb-4"></div>
+    <button onclick="guardarLote(this)" class="w-full bg-teal text-white font-bold py-3 rounded-lg text-sm">Guardar reposición</button>
+  </div>
+</div>
+
+<script>
+// ===== CONFIGURACIÓN =====
+const API_URL='https://script.google.com/macros/s/AKfycby9EJBpcD_tQK61EYnnSyA1X0RMmh-maZSDLxuuSiO3zU0eGL_Fyzz6qlUtqgVpeq40Sg/exec'; // termina en /exec
+const CLAVE='1234';
+const ORDEN=['ENSALADA Y APERITIVOS','NINOS','ALMUERZO','HUEVOS','ENTRADAS/PLATO PRINCIPAL','CAFES Y SODAS']; // orden preferido (sin tildes)
+const esBebida=p=>/SODA|BEBIDA/.test(N(p.categoria)); // categoría que entra al inventario
+
+const $=id=>document.getElementById(id);
+const N=s=>String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().trim();
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+let menu=[],ventas=[],cart=[],pago='',consumo='',cat='TODOS',vista='pos',auth=false,destino='',fR='HOY',fI='HOY',dev={},claveOrden=null,huellaOrden=null,enCurso=false,ticket=null;
+
+async function gs(accion,body){
+  const u=`${API_URL}?action=${accion}`;
+  const r=body?await fetch(u,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(body)}):await fetch(u);
+  const d=await r.json(); if(d&&d.error)throw new Error(d.error); return d;
+}
+
+document.addEventListener('DOMContentLoaded',async()=>{
+  setInterval(()=>$('clock').innerText=new Date().toLocaleTimeString(),1000);
+  paint();renderCarrito();await cargarMenu();
+});
+
+async function cargarMenu(){
+  try{menu=await gs('getMenu');if(!Array.isArray(menu))menu=[];}
+  catch(e){menu=[];$('grid').innerHTML=`<div class="col-span-full text-center py-16 space-y-2"><p class="font-bold text-kred text-sm">No se pudo cargar el menú</p><p class="text-xs text-mute">${esc(e.message)}</p><button onclick="cargarMenu()" class="bg-kred text-white font-bold text-xs px-4 py-2 rounded-lg">Reintentar</button></div>`;renderCats();return;}
+  renderCats();renderGrid();
+}
+
+// ===== NAVEGACIÓN =====
+function categorias(){
+  const u=[...new Set(menu.map(p=>String(p.categoria||'').trim()).filter(Boolean))];
+  const i=c=>{const k=ORDEN.indexOf(N(c));return k<0?99:k};
+  return ['TODOS',...u.sort((a,b)=>i(a)-i(b))];
+}
+function icono(c){const n=N(c);return n==='TODOS'?'layout-grid':/ENSALADA|APERITIVO/.test(n)?'salad':/NINO/.test(n)?'smile':/ALMUERZO/.test(n)?'soup':/HUEVO/.test(n)?'egg-fried':/CAFE|SODA/.test(n)?'cup-soda':'utensils';}
+function renderCats(){
+  const on='bg-kred text-white border-kred',off='bg-paper border-line hover:border-kred';
+  const b=(fn,ic,t,act,extra='')=>`<button onclick="${fn}" class="px-4 py-2 rounded-lg text-sm font-semibold whitespace-nowrap flex items-center gap-1.5 border ${act?on:off} ${extra}"><i data-lucide="${ic}" class="w-4 h-4"></i> ${esc(t)}</button>`;
+  $('cats').innerHTML=categorias().map(c=>b(`filtrarCat(${JSON.stringify(c).replace(/"/g,'&quot;')})`,icono(c),c==='TODOS'?'Todos':c,vista==='pos'&&c===cat)).join('')
+   +'<div class="w-px bg-line mx-1 shrink-0"></div>'
+   +b("pedirAcceso('resumen')",'bar-chart-2','Resumen',vista==='resumen')
+   +b("pedirAcceso('inv')",'cup-soda','Inventario',vista==='inv')
+   +b("pedirAcceso('dev')",'terminal','Dev',vista==='dev');
+  lucide.createIcons();
+}
+function mostrar(v){
+  vista=v;['pos','resumen','dev','inv'].forEach(x=>$('v-'+x).classList.toggle('hidden',x!==v));
+  $('btn-salir').classList.toggle('hidden',!auth);$('btn-salir').classList.toggle('flex',auth);
+  renderCats();
+  if(v==='resumen')cargarVentas().then(renderResumen);
+  if(v==='dev')renderDev();
+  if(v==='inv')Promise.all([refrescarMenu(),cargarVentas()]).then(renderInv);
+}
+function filtrarCat(c){cat=c;mostrar('pos');renderGrid();}
+function pedirAcceso(v){if(auth)return mostrar(v);destino=v;$('a-pass').value='';$('a-err').classList.add('hidden');$('m-auth').classList.remove('hidden');$('m-auth').classList.add('flex');$('a-pass').focus();}
+function validarClave(){
+  if($('a-pass').value!==CLAVE){$('a-err').classList.remove('hidden');return;}
+  auth=true;$('m-auth').classList.add('hidden');mostrar(destino);
+}
+function salir(){auth=false;mostrar('pos');}
+
+// ===== POS =====
+function renderGrid(){
+  const lista=cat==='TODOS'?menu:menu.filter(p=>String(p.categoria).trim()===cat);
+  if(!lista.length){$('grid').innerHTML='<p class="col-span-full text-center py-12 text-mute">No hay productos en esta categoría</p>';return;}
+  $('grid').innerHTML=lista.map(p=>{const i=menu.indexOf(p),ok=p.disponible!==false;return `
+  <div ${ok?`onclick="agregar(${i})"`:''} class="card ${ok?'cursor-pointer':'off'} bg-paper border border-line rounded-xl overflow-hidden flex flex-col">
+    <div class="h-32 bg-cream relative">${p.imagenUrl?`<img src="${esc(p.imagenUrl)}" alt="" class="w-full h-full object-cover" onerror="this.remove()">`:''}
+      ${ok?'':'<span class="absolute inset-0 flex items-center justify-center bg-ink/40"><span class="bg-kred text-white text-[11px] font-black px-3 py-1 rounded">Agotado</span></span>'}</div>
+    <div class="p-3 flex-1 flex flex-col justify-between"><h3 class="font-semibold text-sm line-clamp-2">${esc(p.nombre)}</h3>
+      <div class="mt-2 flex justify-between items-center"><span class="fd text-lg text-kred">${Number(p.precio).toFixed(2)} Bs</span><span class="bg-kred/10 text-kred p-1.5 rounded-lg"><i data-lucide="plus" class="w-4 h-4"></i></span></div></div>
+  </div>`}).join('');
+  lucide.createIcons();
+}
+function agregar(i){
+  const p=menu[i],it=cart.find(x=>x.id===p.id);
+  if(it)it.cantidad++;else cart.push({id:p.id,nombre:p.nombre,precio:Number(p.precio)||0,cantidad:1});
+  renderCarrito();
+}
+function cambiar(i,d){cart[i].cantidad+=d;if(cart[i].cantidad<=0)cart.splice(i,1);renderCarrito();}
+function vaciar(){cart=[];pago='';consumo='';['c-nombre','c-cel','c-nota'].forEach(x=>$(x).value='');paint();renderCarrito();}
+const totalCarrito=()=>cart.reduce((s,i)=>s+i.precio*i.cantidad,0);
+function renderCarrito(){
+  $('cart-items').innerHTML=cart.length?cart.map((it,i)=>`
+   <div class="bg-cream p-3 rounded-lg border border-line flex items-center justify-between gap-2">
+     <div class="min-w-0"><h4 class="text-xs font-bold">${esc(it.nombre)}</h4><p class="text-xs text-kred font-bold">${(it.precio*it.cantidad).toFixed(2)} Bs</p></div>
+     <div class="flex items-center gap-2 bg-paper border border-line rounded px-2 py-1"><button onclick="cambiar(${i},-1)" class="w-4 font-bold">-</button><span class="text-xs font-bold w-4 text-center">${it.cantidad}</span><button onclick="cambiar(${i},1)" class="w-4 font-bold">+</button></div>
+   </div>`).join(''):'<div class="text-center text-mute py-12 text-sm flex flex-col items-center gap-2"><i data-lucide="utensils-crossed" class="w-8 h-8 opacity-40"></i>No hay productos en la orden</div>';
+  const t=totalCarrito(),n=cart.reduce((s,i)=>s+i.cantidad,0);
+  $('total').innerText=t.toFixed(2)+' Bs';
+  $('fab').classList.toggle('hidden',!n);$('fab').classList.toggle('flex',!!n);$('fab-t').innerText=`${n} · ${t.toFixed(2)} Bs`;
+  validar();lucide.createIcons();
+}
+function cartToggle(a){$('cart').classList.toggle('open',a);document.body.style.overflow=a?'hidden':'';}
+const BASE='py-2 rounded-lg text-xs font-semibold border flex items-center justify-center gap-1.5 transition';
+function paint(){document.querySelectorAll('[data-g]').forEach(b=>{const a=(b.dataset.g==='pago'?pago:consumo)===b.dataset.v;b.className=BASE+(a?' bg-teal text-white border-teal':' bg-paper border-line hover:border-teal');});}
+function pick(g,v){if(g==='pago')pago=v;else consumo=v;paint();validar();}
+function validar(){
+  const ok=cart.length&&pago&&consumo&&$('c-nombre').value.trim();const b=$('btn-venta');
+  b.disabled=!ok;b.className='w-full font-bold py-3.5 rounded-lg text-sm flex items-center justify-center gap-2 '+(ok?'bg-kred hover:bg-kreddk text-white cursor-pointer':'bg-line text-mute cursor-not-allowed');
+  b.innerHTML='<i data-lucide="flame" class="w-4 h-4"></i> Enviar a cocina y registrar';lucide.createIcons();
+}
+
+async function procesarVenta(){
+  const nombre=$('c-nombre').value.trim();
+  if(!cart.length||!pago||!consumo||!nombre||enCurso)return;
+  enCurso=true;$('btn-venta').disabled=true;$('btn-venta').innerText='Registrando venta…';
+  const total=totalCarrito();
+  const datos={total:Number(total.toFixed(2)),metodoPago:pago,clienteNombre:nombre,clienteCelular:$('c-cel').value.trim()||'N/A',
+    detalleJson:cart.map(i=>`${i.cantidad}x ${i.nombre}`).join(' | '),tipoConsumo:consumo,nota:$('c-nota').value.trim()};
+  // Misma clave en reintentos de la MISMA orden; si la orden cambia, clave nueva
+  const h=JSON.stringify(datos);
+  if(!claveOrden||huellaOrden!==h){claveOrden=crypto.randomUUID?crypto.randomUUID():'ORD-'+Date.now()+'-'+Math.random().toString(36).slice(2,9);huellaOrden=h;}
+  datos.claveIdempotencia=claveOrden;
+  try{
+    const r=await gs('registrarVenta',datos);
+    if(r&&r.exito){
+      claveOrden=huellaOrden=null;
+      comanda(r.idVenta,total,nombre,datos.clienteCelular,consumo,datos.nota);
+      if(r.duplicado)alert('Esta venta ya estaba registrada (recuperada de un reintento). Orden: '+r.idVenta);
+      refrescarMenu();
+    }else alert('Error al guardar la venta: '+((r&&r.error)||'desconocido'));
+  }catch(e){alert('No se pudo registrar la venta: '+e.message+'\n\nLa orden sigue en pantalla, puedes reintentar.');}
+  finally{enCurso=false;validar();}
+}
+async function refrescarMenu(){try{const d=await gs('getMenu');if(Array.isArray(d)){menu=d;if(vista==='pos')renderGrid();}}catch(e){console.warn(e);}}
+
+// ===== COMANDA =====
+function comanda(id,total,cli,cel,tipo,nota){
+  cartToggle(false);
+  $('t-id').innerText='ORDEN #: '+id;$('t-fecha').innerText=new Date().toLocaleString();
+  $('t-total').innerText=total.toFixed(2)+' Bs';$('t-cli').innerText=cli;$('t-cel').innerText=cel||'N/A';$('t-tipo').innerText=tipo;
+  $('t-nota').innerText=nota;$('t-nota-c').classList.toggle('hidden',!nota);
+  $('t-det').innerHTML=cart.map(i=>`<div class="flex justify-between border-b border-dashed border-zinc-300 pb-2"><span>${i.cantidad}x ${esc(i.nombre)}</span><span>${(i.precio*i.cantidad).toFixed(2)} Bs</span></div>`).join('');
+  ticket={id,total:total.toFixed(2),cli,cel,tipo,nota,fecha:new Date().toLocaleDateString(),hora:new Date().toLocaleTimeString(),items:cart.map(i=>({...i}))};
+  $('m-comanda').classList.remove('hidden');$('m-comanda').classList.add('flex');estadoImp();lucide.createIcons();
+  vaciar(); // la comanda ya se copió; evita cobrar la misma orden dos veces
+}
+
+// ===== IMPRESORA TÉRMICA ESC/POS (58 mm, 32 columnas) =====
+const IMP={tipo:null,nombre:'',car:null,writer:null,ANCHO:32};
+const BT_PERFILES=[['000018f0-0000-1000-8000-00805f9b34fb','00002af1-0000-1000-8000-00805f9b34fb'],['0000ffe0-0000-1000-8000-00805f9b34fb','0000ffe1-0000-1000-8000-00805f9b34fb'],['49535343-fe7d-4ae5-8fa9-9fafd205e455','49535343-8841-43f4-a8d4-ecbe34729bb3']];
+const CP437={'á':0xA0,'é':0x82,'í':0xA1,'ó':0xA2,'ú':0xA3,'Á':0xB5,'É':0x90,'Í':0xD6,'Ó':0xE0,'Ú':0xE9,'ñ':0xA4,'Ñ':0xA5,'ü':0x81,'Ü':0x9A,'¿':0xA8,'¡':0xAD};
+const bytesTxt=t=>[...String(t)].map(c=>{const k=c.codePointAt(0);return k<128?k:(CP437[c]??0x3F);});
+function envolver(t,a){const L=[];let x='';String(t).split(' ').forEach(w=>{const c=x?x+' '+w:w;if(c.length>a){if(x)L.push(x);x=w.slice(0,a);}else x=c;});if(x)L.push(x);return L.length?L:[''];}
+function dos(i,d,a){const e=a-i.length-d.length;return e<1?i.slice(0,Math.max(0,a-d.length-1))+' '+d:i+' '.repeat(e)+d;}
+function escpos(t){
+  const A=IMP.ANCHO,o=[];const p=(...b)=>o.push(...b),tx=s=>p(...bytesTxt(s)),lf=()=>p(10),ln=c=>{tx(c.repeat(A));lf();};
+  const al=n=>p(27,0x61,n),neg=n=>p(27,0x45,n),dbl=n=>p(29,0x21,n?0x11:0);
+  p(27,0x40);al(1);dbl(1);neg(1);tx('KUBA-KUBA');lf();neg(0);dbl(0);tx('*** COMANDA PARA COCINA ***');lf();al(0);ln('=');
+  tx('ORDEN #: '+t.id);lf();tx(`Hora: ${t.hora} - ${t.fecha}`);lf();ln('-');
+  neg(1);tx('CLIENTE:');neg(0);lf();envolver(t.cli.toUpperCase(),A).forEach(l=>{tx(l);lf();});
+  tx('CELULAR: '+(t.cel||'N/A'));lf();neg(1);tx('TIPO: '+t.tipo.toUpperCase());neg(0);lf();
+  if(t.nota){ln('-');neg(1);tx('NOTA:');neg(0);lf();envolver(t.nota,A).forEach(l=>{tx(l);lf();});}
+  ln('=');
+  t.items.forEach(i=>{neg(1);const pr=(i.precio*i.cantidad).toFixed(2)+'Bs';envolver(`${i.cantidad}x ${i.nombre}`,A-pr.length-1).forEach((l,k,r)=>{tx(k===r.length-1?dos(l,pr,A):l);lf();});neg(0);ln('-');});
+  al(1);neg(1);dbl(1);tx(`TOTAL: ${t.total} Bs`);lf();dbl(0);neg(0);tx('Gracias por su preferencia');lf();al(0);
+  for(let i=0;i<5;i++)lf();
+  return new Uint8Array(o);
+}
+async function conectarBT(){
+  if(!navigator.bluetooth)return alert('Este navegador no soporta Bluetooth. Usa Chrome en Android, o USB en PC.');
+  try{
+    const d=await navigator.bluetooth.requestDevice({acceptAllDevices:true,optionalServices:BT_PERFILES.map(x=>x[0])});
+    const s=await d.gatt.connect();let car=null;
+    for(const [sv,ch] of BT_PERFILES){try{car=await (await s.getPrimaryService(sv)).getCharacteristic(ch);break;}catch(e){}}
+    if(!car)throw new Error('No se encontró un canal de escritura compatible.');
+    Object.assign(IMP,{tipo:'bt',nombre:d.name||'Impresora',car});
+    d.addEventListener('gattserverdisconnected',()=>{IMP.tipo=null;estadoImp();});estadoImp();
+  }catch(e){if(e.name!=='NotFoundError')alert('No se pudo conectar por Bluetooth: '+e.message);}
+}
+async function conectarUSB(){
+  if(!navigator.serial)return alert('Este navegador no soporta Web Serial. Usa Chrome/Edge en PC, o Bluetooth en móvil.');
+  try{const port=await navigator.serial.requestPort();await port.open({baudRate:9600});Object.assign(IMP,{tipo:'serial',nombre:'Impresora USB',writer:port.writable.getWriter()});estadoImp();}
+  catch(e){if(e.name!=='NotFoundError')alert('No se pudo conectar por USB: '+e.message);}
+}
+function estadoImp(){const e=$('est-imp');if(!e)return;e.textContent=IMP.tipo?`🖨️ ${IMP.nombre} conectada`:'🖨️ Impresora no conectada';e.className='text-[11px] font-bold '+(IMP.tipo?'text-emerald-600':'text-zinc-400');}
+async function imprimir(){
+  if(!ticket||!IMP.tipo)return window.print(); // sin térmica: impresión del navegador
+  try{
+    const b=escpos(ticket);
+    if(IMP.tipo==='bt')for(let i=0;i<b.length;i+=180)await IMP.car.writeValueWithoutResponse(b.slice(i,i+180));
+    else await IMP.writer.write(b);
+  }catch(e){alert('Error en la impresora: '+e.message+'\nSe usará la impresión del navegador.');window.print();}
+}
+
+// ===== PERIODOS Y VENTAS =====
+async function cargarVentas(){try{const d=await gs('getVentas');ventas=Array.isArray(d)?d:[];}catch(e){ventas=[];alert('No se pudieron cargar las ventas: '+e.message);}}
+function enPeriodo(vs,p){
+  const a=new Date();
+  const f=vs.filter(v=>{if(!v.fecha)return false;const d=new Date(v.fecha);
+    if(p==='HOY')return d.toDateString()===a.toDateString();
+    if(p==='SEMANA'){const x=new Date();x.setDate(a.getDate()-7);return d>=x;}
+    return d.getMonth()===a.getMonth()&&d.getFullYear()===a.getFullYear();});
+  return{f,dias:p==='HOY'?1:p==='SEMANA'?7:new Date(a.getFullYear(),a.getMonth()+1,0).getDate()};
+}
+function conteo(vs){const c={};vs.forEach(v=>String(v.detalle||'').split(' | ').forEach(s=>{const m=s.match(/^(\d+)x\s+(.+)$/);if(m){const n=m[2].trim();c[n]=(c[n]||0)+Number(m[1]);}}));return c;}
+function seg(el,act,fn){$(el).innerHTML=['HOY','SEMANA','MES'].map(p=>`<button onclick="${fn}('${p}')" class="px-3 py-1.5 rounded-md text-xs font-bold ${p===act?'bg-kred text-white':'text-mute hover:text-ink'}">${{HOY:'Hoy',SEMANA:'Esta semana',MES:'Este mes'}[p]}</button>`).join('');}
+
+function setR(p){fR=p;renderResumen();}
+function renderResumen(){
+  seg('seg-r',fR,'setR');
+  const{f}=enPeriodo(ventas,fR);
+  $('k-ing').innerText=f.reduce((s,v)=>s+(Number(v.total)||0),0).toFixed(2)+' Bs';$('k-ped').innerText=f.length;
+  const c=conteo(f),ks=Object.keys(c);
+  $('t-top').innerHTML=ks.length?ks.map(k=>{const pr=menu.find(m=>String(m.nombre).trim()===k);return `<tr><td class="p-2 font-semibold">${esc(k)}</td><td class="p-2 text-center">${c[k]}</td><td class="p-2 text-right text-kred font-bold">${(c[k]*(pr?Number(pr.precio):0)).toFixed(2)} Bs</td></tr>`}).join(''):'<tr><td colspan="3" class="p-4 text-center text-mute">Sin registros en este periodo</td></tr>';
+  $('hist').innerHTML=f.length?f.map(v=>`<div class="bg-cream p-2.5 rounded-lg border border-line text-xs space-y-1"><div class="flex justify-between font-bold"><span class="text-kred">${esc(v.idVenta)}</span><span class="flex-1 px-2 truncate">${esc(v.cliente)}</span><span class="text-teal">${(Number(v.total)||0).toFixed(2)} Bs</span></div><p class="text-[10px] font-bold text-mute">${esc(v.tipoConsumo)}${v.nota?' · con nota':''}</p><p class="text-[11px] text-mute line-clamp-2">${esc(v.detalle)}</p></div>`).join(''):'<p class="text-center text-mute text-xs py-4">Sin órdenes</p>';
+}
+
+// ===== DEV =====
+function renderDev(){
+  dev={};
+  $('t-dev').innerHTML=menu.length?menu.map((p,i)=>`<tr><td class="p-3 font-semibold">${esc(p.nombre)}</td><td class="p-3 text-mute">${esc(p.categoria)}</td>
+   <td class="p-3"><input type="number" step="0.01" min="0" value="${Number(p.precio).toFixed(2)}" onchange="cambioDev(${i},'precio',this.value)" class="w-24 bg-cream border border-line rounded-lg px-2 py-1.5 text-xs"> Bs</td>
+   <td class="p-3 text-center"><label class="relative inline-flex cursor-pointer"><input type="checkbox" class="peer sr-only" ${p.disponible!==false?'checked':''} onchange="cambioDev(${i},'disponible',this.checked)"><span class="w-10 h-5 bg-line rounded-full peer-checked:bg-teal transition after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:w-4 after:h-4 after:bg-white after:rounded-full after:transition peer-checked:after:translate-x-5"></span></label></td></tr>`).join(''):'<tr><td colspan="4" class="p-4 text-center text-mute">No se pudo cargar el menú</td></tr>';
+}
+function cambioDev(i,campo,v){const id=menu[i].id;(dev[id]=dev[id]||{id})[campo]=campo==='precio'?Number(v):v;}
+async function guardarDev(btn){
+  const cambios=Object.values(dev);if(!cambios.length)return alert('No hay cambios para guardar.');
+  btn.disabled=true;
+  try{
+    const r=await gs('actualizarProductos',{cambios});
+    if(!r.exito)throw new Error(r.error||'desconocido');
+    cambios.forEach(c=>{const p=menu.find(m=>m.id===c.id);if(p){if(c.precio!==undefined)p.precio=c.precio;if(c.disponible!==undefined)p.disponible=c.disponible;}});
+    alert('Precios y disponibilidad actualizados.');renderDev();
+  }catch(e){alert('No se pudieron guardar los cambios: '+e.message);}finally{btn.disabled=false;}
+}
+
+// ===== INVENTARIO =====
+function setI(p){fI=p;renderInv();}
+function renderInv(){
+  seg('seg-i',fI,'setI');
+  const{f,dias}=enPeriodo(ventas,fI),c=conteo(f),bebidas=menu.filter(esBebida);
+  $('t-inv').innerHTML=bebidas.length?bebidas.map(b=>{
+    const n=c[String(b.nombre).trim()]||0,st=(b.stock===null||b.stock===''||isNaN(Number(b.stock)))?null:Number(b.stock);
+    return `<tr><td class="p-3 font-semibold">${esc(b.nombre)}</td><td class="p-3 text-center font-bold ${st!==null&&st<=5?'text-kred':''}">${st===null?'<span class="text-mute font-normal">Sin dato</span>':st}</td><td class="p-3 text-center">${n}</td><td class="p-3 text-center text-teal font-bold">${(n/dias).toFixed(1)}</td>
+    <td class="p-3 text-center"><button onclick="reponer(${menu.indexOf(b)})" class="bg-teal text-white text-[11px] font-bold px-3 py-1.5 rounded-lg">+ Reponer</button></td></tr>`}).join(''):'<tr><td colspan="5" class="p-4 text-center text-mute">No hay bebidas en el menú (categoría CAFES Y SODAS)</td></tr>';
+}
+async function reponer(i){
+  const p=menu[i],c=parseFloat(prompt(`¿Cuántas unidades de "${p.nombre}" quieres agregar al stock?`,'0'));
+  if(isNaN(c)||c<=0)return;
+  await enviarStock([{id:p.id,cantidad:c}]);
+}
+async function enviarStock(cambios){
+  try{const r=await gs('actualizarStockLote',{cambios});if(!r.exito)throw new Error(r.error||'desconocido');await refrescarMenu();renderInv();return true;}
+  catch(e){alert('No se pudo reponer el stock: '+e.message);return false;}
+}
+function abrirLote(){
+  $('lote').innerHTML=menu.filter(esBebida).map(b=>`<div class="bg-cream p-2.5 rounded-lg border border-line flex items-center justify-between gap-3"><div class="min-w-0"><p class="text-xs font-bold truncate">${esc(b.nombre)}</p><p class="text-[10px] text-mute">Stock actual: ${b.stock===null||b.stock===''?'—':esc(b.stock)}</p></div><input type="number" min="0" step="1" placeholder="0" data-id="${esc(b.id)}" class="lote-in w-20 bg-paper border border-line rounded-lg px-2 py-1.5 text-xs text-center"></div>`).join('')||'<p class="text-center text-mute text-xs py-4">No hay bebidas en el menú.</p>';
+  $('m-lote').classList.remove('hidden');$('m-lote').classList.add('flex');lucide.createIcons();
+}
+async function guardarLote(btn){
+  const cambios=[...document.querySelectorAll('.lote-in')].map(i=>({id:i.dataset.id,cantidad:parseFloat(i.value)})).filter(c=>c.cantidad>0);
+  if(!cambios.length)return alert('Ingresa al menos una cantidad mayor a 0.');
+  btn.disabled=true;
+  if(await enviarStock(cambios))$('m-lote').classList.add('hidden');
+  btn.disabled=false;
+}
+</script>
+</body></html>
